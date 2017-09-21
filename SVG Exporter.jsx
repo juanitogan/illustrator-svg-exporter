@@ -29,7 +29,8 @@ var exportFolder,
     sourceDoc,
     itemsToExport,
     exportDoc,
-    svgOptions;
+    svgOptions,
+    resizeToPct;
 
 try {
   if ( app.documents.length > 0 ) {
@@ -39,6 +40,8 @@ try {
     svgOptions.fontSubsetting = SVGFontSubsetting.None;
     svgOptions.documentEncoding = SVGDocumentEncoding.UTF8;
     svgOptions.coordinatePrecision = 4;
+
+    resizeToPct = 10; // resize down to 10%
 
     itemsToExport = [];
     sourceDoc = app.activeDocument;
@@ -197,14 +200,15 @@ function exportLayer(layer) {
      * treats it (e.g., -142 in the UI is 142).
      *
      */
-    startX = ( !startX || startX > item.visibleBounds[0] ) ? item.visibleBounds[0] : startX;
-    startY = ( !startY || startY < item.visibleBounds[1] ) ? item.visibleBounds[1] : startY;
-    endX = ( !endX || endX < item.visibleBounds[2] ) ? item.visibleBounds[2] : endX;
-    endY = ( !endY || endY > item.visibleBounds[3] ) ? item.visibleBounds[3] : endY;
+    //startX = ( !startX || startX > item.visibleBounds[0] ) ? item.visibleBounds[0] : startX;
+    //startY = ( !startY || startY < item.visibleBounds[1] ) ? item.visibleBounds[1] : startY;
+    //endX = ( !endX || endX < item.visibleBounds[2] ) ? item.visibleBounds[2] : endX;
+    //endY = ( !endY || endY > item.visibleBounds[3] ) ? item.visibleBounds[3] : endY;
   }
 
   exportDoc.layers[0].name = name.slice(0, -4);
-  exportSVG( exportDoc, name, [startX, startY, endX, endY], svgOptions );
+  //exportSVG( exportDoc, name, [startX, startY, endX, endY], svgOptions );
+  exportSVG( exportDoc, name, null, svgOptions );
 }
 
 function exportItem(item) {
@@ -219,12 +223,46 @@ function exportItem(item) {
   app.activeDocument = exportDoc;
 
   exportDoc.layers[0].name = ' ';
-  exportSVG( exportDoc, name, item.visibleBounds, svgOptions );
+  //exportSVG( exportDoc, name, item.visibleBounds, svgOptions );
+  exportSVG( exportDoc, name, null, svgOptions );
 }
 
-function exportSVG(doc, name, bounds, exportOptions) {
+function exportSVG(doc, name, artboardBounds, exportOptions) {
 
-  doc.artboards[0].artboardRect = bounds;
+  var item,
+      startX,
+      startY,
+      endX,
+      endY;
+
+  for ( var i = 0; i < doc.pageItems.length; i++ ) {
+    item = doc.pageItems[i]
+    item.resize(
+      resizeToPct, // x
+      resizeToPct, // y
+      true, // changePositions
+      true, // changeFillPatterns
+      true, // changeFillGradients
+      true, // changeStrokePattern
+      resizeToPct, // changeLineWidths    <----  NOTE THIS resizeToPct
+      Transformation.DOCUMENTORIGIN // scaleAbout
+    );
+    startX = ( !startX || startX > item.visibleBounds[0] ) ? item.visibleBounds[0] : startX;
+    startY = ( !startY || startY < item.visibleBounds[1] ) ? item.visibleBounds[1] : startY;
+    endX = ( !endX || endX < item.visibleBounds[2] ) ? item.visibleBounds[2] : endX;
+    endY = ( !endY || endY > item.visibleBounds[3] ) ? item.visibleBounds[3] : endY;
+  }
+
+  if ( artboardBounds ) {
+    // Not terribly useful to preserve original artboard after resizing.  Rethink sometime.
+    // This maybe... since we are resizing around origin:
+    for ( var i = 0; i < 4; i++ ) {
+        artboardBounds[i] *= resizeToPct / 100;
+    }
+  } else {
+    artboardBounds = [startX, startY, endX, endY];
+  }
+  doc.artboards[0].artboardRect = artboardBounds;
 
   var file = new File( exportFolder.fsName + '/' + name );
   doc.exportFile( file, ExportType.SVG, exportOptions );
