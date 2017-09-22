@@ -29,8 +29,7 @@ var exportFolder,
     sourceDoc,
     itemsToExport,
     exportDoc,
-    svgOptions,
-    resizeToPct;
+    svgOptions;
 
 try {
   if ( app.documents.length > 0 ) {
@@ -40,8 +39,6 @@ try {
     svgOptions.fontSubsetting = SVGFontSubsetting.None;
     svgOptions.documentEncoding = SVGDocumentEncoding.UTF8;
     svgOptions.coordinatePrecision = 4;
-
-    resizeToPct = 10; // resize down to 10%
 
     itemsToExport = [];
     sourceDoc = app.activeDocument;
@@ -84,6 +81,21 @@ function main() {
 
 }
 
+function resizeItem(item) {
+  resizeToPct = 10; // resize down to 10%
+  item.resize(
+    resizeToPct, // x
+    resizeToPct, // y
+    true, // changePositions
+    true, // changeFillPatterns
+    true, // changeFillGradients
+    true, // changeStrokePattern
+    resizeToPct, // changeLineWidths    <----  NOTE THIS resizeToPct
+    Transformation.DOCUMENTORIGIN // scaleAbout
+  );
+  //return item;
+}
+
 function exportArtboard(artboard) {
 
   var item,
@@ -91,7 +103,8 @@ function exportArtboard(artboard) {
       prettyName,
       doc,
       rect,
-      bbox;
+      bbox,
+      newItem;
 
   app.activeDocument = sourceDoc;
   rect = artboard.artboardRect;
@@ -109,7 +122,8 @@ function exportArtboard(artboard) {
     item = sourceDoc.pageItems[i];
 
     if( hitTest(item, bbox) && !item.locked && !anyParentLocked(item)  ) {
-      item.duplicate( exportDoc, ElementPlacement.PLACEATEND );
+      newItem = item.duplicate( exportDoc, ElementPlacement.PLACEATEND );
+      resizeItem(newItem);
     }
   }
 
@@ -133,8 +147,15 @@ function exportArtboard(artboard) {
     item.hidden = false;
   }
 
+  // Not terribly useful to preserve original artboard after resizing.  Rethink sometime.
+  // This maybe... since we are resizing around origin:
+  var artboardBounds = bbox.visibleBounds;
+  for ( var i = 0; i < 4; i++ ) {
+    artboardBounds[i] *= 10 / 100; //resizeToPct / 100
+  }
+
   exportDoc.layers[0].name = prettyName;
-  exportSVG( exportDoc, name, bbox.visibleBounds, svgOptions );
+  exportSVG( exportDoc, name, artboardBounds, svgOptions );
 
   sourceDoc.pageItems.getByName('__ILSVGEX__BOUNDING_BOX').remove();
 }
@@ -149,7 +170,8 @@ function exportLayer(layer) {
       name,
       prettyName,
       itemName,
-      layerItems;
+      layerItems,
+      newItem;
 
   layerItems = [];
 
@@ -168,7 +190,8 @@ function exportLayer(layer) {
   for ( i = 0, len = layerItems.length; i < len; i++ ) {
     app.activeDocument = sourceDoc;
     item = layerItems[i];
-    item.duplicate( exportDoc, ElementPlacement.PLACEATEND );
+    newItem = item.duplicate( exportDoc, ElementPlacement.PLACEATEND );
+    resizeItem(newItem);
   }
 
   app.activeDocument = exportDoc;
@@ -200,15 +223,14 @@ function exportLayer(layer) {
      * treats it (e.g., -142 in the UI is 142).
      *
      */
-    //startX = ( !startX || startX > item.visibleBounds[0] ) ? item.visibleBounds[0] : startX;
-    //startY = ( !startY || startY < item.visibleBounds[1] ) ? item.visibleBounds[1] : startY;
-    //endX = ( !endX || endX < item.visibleBounds[2] ) ? item.visibleBounds[2] : endX;
-    //endY = ( !endY || endY > item.visibleBounds[3] ) ? item.visibleBounds[3] : endY;
+    startX = ( !startX || startX > item.visibleBounds[0] ) ? item.visibleBounds[0] : startX;
+    startY = ( !startY || startY < item.visibleBounds[1] ) ? item.visibleBounds[1] : startY;
+    endX = ( !endX || endX < item.visibleBounds[2] ) ? item.visibleBounds[2] : endX;
+    endY = ( !endY || endY > item.visibleBounds[3] ) ? item.visibleBounds[3] : endY;
   }
 
   exportDoc.layers[0].name = name.slice(0, -4);
-  //exportSVG( exportDoc, name, [startX, startY, endX, endY], svgOptions );
-  exportSVG( exportDoc, name, null, svgOptions );
+  exportSVG( exportDoc, name, [startX, startY, endX, endY], svgOptions );
 }
 
 function exportItem(item) {
@@ -219,50 +241,17 @@ function exportItem(item) {
   name = item.name;
   newItem = item.duplicate( exportDoc, ElementPlacement.PLACEATEND );
   newItem.hidden = false;
+  resizeItem(newItem);
   newItem.name = item.name.slice(0, -4);
   app.activeDocument = exportDoc;
 
   exportDoc.layers[0].name = ' ';
-  //exportSVG( exportDoc, name, item.visibleBounds, svgOptions );
-  exportSVG( exportDoc, name, null, svgOptions );
+  exportSVG( exportDoc, name, newItem.visibleBounds, svgOptions );
 }
 
-function exportSVG(doc, name, artboardBounds, exportOptions) {
+function exportSVG(doc, name, bounds, exportOptions) {
 
-  var item,
-      startX,
-      startY,
-      endX,
-      endY;
-
-  for ( var i = 0; i < doc.pageItems.length; i++ ) {
-    item = doc.pageItems[i]
-    item.resize(
-      resizeToPct, // x
-      resizeToPct, // y
-      true, // changePositions
-      true, // changeFillPatterns
-      true, // changeFillGradients
-      true, // changeStrokePattern
-      resizeToPct, // changeLineWidths    <----  NOTE THIS resizeToPct
-      Transformation.DOCUMENTORIGIN // scaleAbout
-    );
-    startX = ( !startX || startX > item.visibleBounds[0] ) ? item.visibleBounds[0] : startX;
-    startY = ( !startY || startY < item.visibleBounds[1] ) ? item.visibleBounds[1] : startY;
-    endX = ( !endX || endX < item.visibleBounds[2] ) ? item.visibleBounds[2] : endX;
-    endY = ( !endY || endY > item.visibleBounds[3] ) ? item.visibleBounds[3] : endY;
-  }
-
-  if ( artboardBounds ) {
-    // Not terribly useful to preserve original artboard after resizing.  Rethink sometime.
-    // This maybe... since we are resizing around origin:
-    for ( var i = 0; i < 4; i++ ) {
-        artboardBounds[i] *= resizeToPct / 100;
-    }
-  } else {
-    artboardBounds = [startX, startY, endX, endY];
-  }
-  doc.artboards[0].artboardRect = artboardBounds;
+  doc.artboards[0].artboardRect = bounds;
 
   var file = new File( exportFolder.fsName + '/' + name );
   doc.exportFile( file, ExportType.SVG, exportOptions );
