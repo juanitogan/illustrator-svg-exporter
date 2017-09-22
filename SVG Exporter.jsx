@@ -91,7 +91,7 @@ function resizeItem(item) {
     true, // changeFillGradients
     true, // changeStrokePattern
     resizeToPct, // changeLineWidths    <----  NOTE THIS resizeToPct
-    Transformation.DOCUMENTORIGIN // scaleAbout
+    undefined //Transformation.DOCUMENTORIGIN // scaleAbout
   );
   //return item;
 }
@@ -150,9 +150,10 @@ function exportArtboard(artboard) {
   // Not terribly useful to preserve original artboard after resizing.  Rethink sometime.
   // This maybe... since we are resizing around origin:
   var artboardBounds = bbox.visibleBounds;
-  for ( var i = 0; i < 4; i++ ) {
-    artboardBounds[i] *= 10 / 100; //resizeToPct / 100
-  }
+  //var artboardBounds = rect;
+  //for ( var i = 0; i < 4; i++ ) {
+  //  artboardBounds[i] *= 10 / 100; //resizeToPct / 100
+  //}
 
   exportDoc.layers[0].name = prettyName;
   exportSVG( exportDoc, name, artboardBounds, svgOptions );
@@ -250,6 +251,30 @@ function exportItem(item) {
 }
 
 function exportSVG(doc, name, bounds, exportOptions) {
+  /*
+  var logDoc = documents.add();
+  var logText = logDoc.textFrames.add();
+  logText.top = 600;
+  logText.left = 200;
+  logText.contents += String(bounds[0]) + '\r';
+  logText.contents += String(bounds[1]) + '\r';
+  logText.contents += String(bounds[2]) + '\r';
+  logText.contents += String(bounds[3]) + '\r';
+  */
+  // Prevent artboard dimensions from going below 1.0pt. Else error: 1346458189
+  var x = bounds[2] - bounds[0];
+  var y = bounds[1] - bounds[3];
+  // Center while accounting for precision errors.
+  if (x < 1) {
+    var xOffset  = (1 - x) / 2;
+    bounds[0] -= xOffset;
+    bounds[2] = bounds[0] + 1;
+  }
+  if (y < 1) {
+    var yOffset  = (1 - y) / 2;
+    bounds[1] += yOffset;
+    bounds[3] = bounds[1] - 1;
+  }
 
   doc.artboards[0].artboardRect = bounds;
 
